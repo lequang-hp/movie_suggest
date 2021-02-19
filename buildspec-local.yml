@@ -1,0 +1,30 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+  build:
+    commands:
+      - echo Build started on `date`
+      - mkdir /tmp/test_reports
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG -f Dockerfile.dev .
+      # テスト実行する
+      - docker run -v /tmp/test_reports:/app/test_reports $IMAGE_REPO_NAME:$IMAGE_TAG bash -c "tests/test.sh"
+  post_build:
+    commands:
+      - echo Build and Test completed on `date`
+      # docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - |-
+        if [ $CODEBUILD_BUILD_SUCCEEDING = 1 ]; then
+          echo Build and Test Succeed
+          echo Start Release
+          docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+          echo Mocked Pushing the Docker image ...
+        else
+          echo Build and Test FAILED!!!!
+        fi

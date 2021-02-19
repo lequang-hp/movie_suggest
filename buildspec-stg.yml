@@ -1,0 +1,38 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+      # コミットの先頭7文字をとる
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      # コミットの先頭7文字とenvフラグ [dev|stg|prd]でDockerイメージのタグを作成する
+      - IMAGE_TAG=stg_${COMMIT_HASH:=latest}
+      # イメージのURI作成する
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      # Dockerビルド
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG -f Dockerfile .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build and Test completed on `date`
+      - echo Pushing the Docker image ...
+      # ビルドしたDocker ImageをECRへプッシュする
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Writing image definitions file...
+      # artifactのファイル作成
+      - printf '[{"name":"%s","imageUri":"%s"}]' $TASK_DEF_CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+
+# パイプライン設定時は” イメージ定義ファイル” (imagedefinitions.jsonなど)を指定する必要があある
+# デプロイするタスク定義(ECS TaskDefination)に対してコンテナイメージのURI(リポジトリ＋タグ)をマッピングするためのものです
+# buildspec.ymlの出力アーティファクト名と揃える必要がある点はご注意必要
+artifacts:
+  files: imagedefinitions.json

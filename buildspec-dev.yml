@@ -1,0 +1,53 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+      - IMAGE_TAG=dev
+      # イメージのURI作成する
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+  build:
+    commands:
+      - echo Build started on `date`
+      # 単体テスト用の準備
+      # プロジェクトにより以下が違う
+      - mkdir /tmp/test_reports
+      - echo Building the Docker image...
+      # docker ビルド
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG -f Dockerfile .
+      # docker内に単体テスト実施して、/tmp/test_reportsにレポート作成する
+      - docker run -v /tmp/test_reports:/app/test_reports $TASK_DEF_CONTAINER_NAME $IMAGE_REPO_NAME:$IMAGE_TAG bash -c "tests/test.sh"
+  post_build:
+    commands:
+      # 単体テストが全てPASSにしたら、ECRにdocker pushして、リリースする
+      - echo Build and Test completed on `date`
+      - |-
+        if [ $CODEBUILD_BUILD_SUCCEEDING = 1 ]; then
+          echo Build and Test Succeed
+          echo Start Release
+          docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $REPOSITORY_URI:$IMAGE_TAG
+          echo Pushing the Docker image ...
+          docker push $REPOSITORY_URI:$IMAGE_TAG
+          printf '[{"name":"%s","imageUri":"%s"}]' $TASK_DEF_CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+        else
+          echo Build and Test FAILED!!!!
+        fi
+
+# 単体テストのレポート出力
+reports:
+  report:
+    files:
+      - "junit.xml"
+    base-directory: "/tmp/test_reports"
+    file-format: JunitXml
+
+# パイプライン設定時は” イメージ定義ファイル” (imagedefinitions.jsonなど)を指定する必要があある
+# デプロイするタスク定義(ECS TaskDefination)に対してコンテナイメージのURI(リポジトリ＋タグ)をマッピングするためのものです
+# buildspec.ymlの出力アーティファクト名と揃える必要がある点はご注意必要
+artifacts:
+  files: imagedefinitions.json

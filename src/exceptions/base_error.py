@@ -1,0 +1,10 @@
+from enum import Enum
+
+
+class ErrorCode(Enum):
+    ERROR_CODE_NOT_FOUND = 'WA5001'
+    NOT_FOUND = 'WA4004'
+    PERMISSION_DENIED = 'WA4003'
+    INVALID_CONTENT_FORMAT = 'WA4005'
+    INVALID_FILE_FORMAT = 'WA4006'
+    DATA_EMPTY = 'WA4007'
