@@ -24,7 +24,7 @@ class MovieSuggestService(BaseService):
             sorted_similar_movies = sorted(similar_movies, key=lambda x:x[1], reverse=True)
             result_movie = []
             for movie in sorted_similar_movies[:5]:
-                result_movie.append(self.get_title_from_index(df, movie[0]))
+                result_movie.append({"title": self.get_title_from_index(df, movie[0]), "score": movie[1]})
             return result_movie
         except: 
             raise WebapiException(ErrorCode.INVALID_CONTENT_FORMAT)

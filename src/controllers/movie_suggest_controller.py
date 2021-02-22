@@ -8,7 +8,7 @@ from src.controllers.common.http_exceptions import HTTPInvalidContentFormatExcep
 from src.exceptions import WebapiException
 from src.exceptions import ErrorCode
 
-from .schemas import TaskResponseSchema
+from .schemas import MovieResponseSchema
 from marshmallow import EXCLUDE
 
 from flask import Response
@@ -30,8 +30,8 @@ class MovieSuggestController(AnonymousBaseController):
         try:
             title = args["title"]
             movie_suggest_service = MovieSuggestService()
-            response_file = movie_suggest_service.suggest_movie(title)
-            return response_file
+            result_movie = movie_suggest_service.suggest_movie(title)
+            return MovieResponseSchema(many=True).load(result_movie)
         except WebapiException as e:
             if e.code == ErrorCode.INVALID_CONTENT_FORMAT:
                 raise HTTPInvalidContentFormatException()
